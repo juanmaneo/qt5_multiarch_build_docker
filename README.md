@@ -3,7 +3,7 @@ Just another multiarch cross compiling Dockerfile with qt5
 
 This is a multiarch Docker build environment image aimed at cross compilation.
 You can use this image to produce binaries for multiple architectures and OS.
-It's based of the officila [Debian](https://www.debian.org/) images cf: https://hub.docker.com/_/debian 
+It's based of the official [Debian](https://www.debian.org/) 11 [image](cf: https://hub.docker.com/_/debian)
 
 ## Credit
 
