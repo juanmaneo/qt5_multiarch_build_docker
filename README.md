@@ -1,9 +1,12 @@
 #  Qt5 multiarch build docker
-Just another multiarch cross compiling Dockerfile with qt5
+TL;DR: Docker image for CI
+It's just another multiarch cross compiling Dockerfile including qt5
 
 This is a multiarch Docker build environment image aimed at cross compilation.
 You can use this image to produce binaries for multiple architectures and OS.
 It's based of the official [Debian](https://www.debian.org/) 11 [image](cf: https://hub.docker.com/_/debian)
+
+Also versions of gcc and clang not included as Debian 11 packages are compiled from sources
 
 ## Credit
 
