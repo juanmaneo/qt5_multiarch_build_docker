@@ -105,10 +105,6 @@ RUN apt-get install -y -q autotools-dev                \
         openssl                                        \
         libssl-dev
 
-# get cygwin cross compiler fro debian packages
-# get UPX to compress binaries
-RUN apt-get install -y mingw-w64 upx-ucl
-
 # requirement for RISC-V cpu target toolchain
 RUN apt-get install -y python python3 gcc-multilib \
 autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk \
@@ -120,27 +116,6 @@ RUN apt-get -y clean && apt-get -y autoremove
 #RUN cat /etc/debian_version
 #RUN gcc --version && g++ --version && ld --version
 #RUN java --version
-
-# compile MXE cross-compiler
-WORKDIR /
-RUN git clone https://github.com/mxe/mxe.git
-WORKDIR /mxe
-# checkout to the last known working/tested (for me...) commit on date of this Dockerfile i.e:
-RUN git checkout 76375b2bccbbf409aaab44d4fc0cbd017c5a00e3
-
-# compile the wanted MXE toolchain without CCACHE for space ...
-# NOTE SHOULD THIS BE DEACTIVATED FOR PUCLIC SHARE not sure SLA from Xcode allows sharing but crossbuild does it anyway ...
-RUN make clean && \
-make MXE_USE_CCACHE= DONT_CHECK_REQUIREMENTS=1 MXE_TARGETS="x86_64-w64-mingw32.static i686-w64-mingw32.static" qt5 && \
-make MXE_USE_CCACHE= DONT_CHECK_REQUIREMENTS=1 MXE_TARGETS="x86_64-w64-mingw32.static i686-w64-mingw32.static" libiberty && \
-make clean-junk
-
-# also install Wine
-RUN mkdir -pm755 /etc/apt/keyrings && \
-wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
-wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bullseye/winehq-bullseye.sources && \
-apt update -y -q && \
-apt-get install -y --install-recommends winehq-stable
 
 ## You should be able to compile and use osxcross if you want from a Mac normally
 ## Please ensure you have read and understood the Xcode license terms USING this docker file/image
@@ -245,76 +220,9 @@ ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/darling/lib
 
 WORKDIR /tmp
 
-# compile and install gcc 11 and gcc 12 from sources
-ARG GCC_SRC_BASE_URL="https://github.com/gcc-mirror/gcc/archive/refs/tags/releases"
-
-ARG GCC_SHORT_VERSION="11"
-ARG GCC_FULL_VERSION="11.2.0"
-ARG GCC_SRC_PKG_BASENAME="gcc-$GCC_FULL_VERSION"
-ARG GCC_SRC_PKG="$GCC_SRC_PKG_BASENAME.tar.gz"
-ARG GCC_SRC_PKG_SHA256SUM="5efe343a97e95fe9031aa23e103755ec3bc56855c865c4b6ffcbad6c25675514"
-ARG GCC_SRC_URL="$GCC_SRC_BASE_URL/$GCC_SRC_PKG"
-RUN wget -q $GCC_SRC_URL && \
-echo "$GCC_SRC_PKG_SHA256SUM $GCC_SRC_PKG" | sha256sum --check --status && \
-tar -xvf "$GCC_SRC_PKG"
-WORKDIR /tmp/gcc-releases-gcc-$GCC_FULL_VERSION
-RUN mkdir build && cd build && ../configure -v --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --prefix=/usr/local/gcc-$GCC_FULL_VERSION --enable-checking=release --enable-languages=c,c++ --disable-multilib --program-suffix=-$GCC_SHORT_VERSION && make -j && make install-strip && cd /tmp && rm -rf /tmp/gcc-*
-ENV PATH $PATH:/usr/local/gcc-$GCC_FULL_VERSION/bin
-ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/gcc-$GCC_FULL_VERSION/lib:/usr/local/gcc-$GCC_FULL_VERSION/lib64
-WORKDIR /tmp
-
-ARG GCC_SHORT_VERSION="12"
-ARG GCC_FULL_VERSION="12.2.0"
-ARG GCC_SRC_PKG_BASENAME="gcc-$GCC_FULL_VERSION"
-ARG GCC_SRC_PKG="$GCC_SRC_PKG_BASENAME.tar.gz"
-ARG GCC_SRC_PKG_SHA256SUM="ef29a97a0f635e7bb7d41a575129cced1800641df00803cf29f04dc407985df0"
-ARG GCC_SRC_URL="$GCC_SRC_BASE_URL/$GCC_SRC_PKG"
-RUN wget -q $GCC_SRC_URL && \
-echo "$GCC_SRC_PKG_SHA256SUM $GCC_SRC_PKG" | sha256sum --check --status && \
-tar -xvf "$GCC_SRC_PKG"
-WORKDIR /tmp/gcc-releases-gcc-$GCC_FULL_VERSION
-RUN mkdir build && cd build && ../configure -v --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --prefix=/usr/local/gcc-$GCC_FULL_VERSION --enable-checking=release --enable-languages=c,c++ --disable-multilib --program-suffix=-$GCC_SHORT_VERSION && make -j && make install-strip && cd /tmp && rm -rf /tmp/gcc-*
-ENV PATH $PATH:/usr/local/gcc-$GCC_FULL_VERSION/bin
-ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/gcc-$GCC_FULL_VERSION/lib:/usr/local/gcc-$GCC_FULL_VERSION/lib64
-WORKDIR /tmp
-
 # remove ccache and cleanup
 RUN apt-get purge -y ccache && apt-get purge -y aptitude
 RUN apt-get install -y ca-certificates zip && apt update -q &&  apt-get upgrade -y && apt-get autoremove -y && apt-get clean -y
 
 RUN rm -rf /var/lib/apt/lists/* && rm -rf /mxe/.log && rm -rf /mxe/.ccache && rm -rf /mxe/pkg && rm -rf /tmp/* && rm -rf /usr/share/man* && rm -rf /usr/share/info*
-
-# compile and install clang 14 15 and 16 from sources
-
-# First install lld faster linker from clang 16 source code 
-ARG CLANG_SRC_VERSION=16.0.1
-RUN git clone https://github.com/llvm/llvm-project.git && cd llvm-project && git checkout llvmorg-$CLANG_SRC_VERSION
-WORKDIR /tmp/llvm-project
-RUN cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS=lld -S llvm -B build -G Ninja
-RUN ninja -C build install && rm -rf /tmp/llvm-project
-WORKDIR /tmp
-RUN rm -rf /tmp/*
-# then clang 16
-ARG CLANG_SRC_VERSION=16.0.1
-RUN git clone https://github.com/llvm/llvm-project.git && cd llvm-project && git checkout llvmorg-$CLANG_SRC_VERSION
-WORKDIR /tmp/llvm-project
-RUN cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=lld -S llvm -B build -G Ninja
-RUN ninja -C build install && rm -rf /tmp/llvm-project
-WORKDIR /tmp
-RUN rm -rf /tmp/*
-# install clang 15
-ARG CLANG_SRC_VERSION=15.0.7
-RUN git clone https://github.com/llvm/llvm-project.git && cd llvm-project && git checkout llvmorg-$CLANG_SRC_VERSION
-WORKDIR /tmp/llvm-project
-RUN cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=lld -S llvm -B build -G Ninja
-RUN ninja -C build install && rm -rf /tmp/llvm-project
-WORKDIR /tmp
-# install clang 14
-ARG CLANG_SRC_VERSION=14.0.6
-RUN git clone https://github.com/llvm/llvm-project.git && cd llvm-project && git checkout llvmorg-$CLANG_SRC_VERSION
-WORKDIR /tmp/llvm-project
-RUN cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=lld -S llvm -B build -G Ninja
-RUN ninja -C build install && rm -rf /tmp/llvm-project
-WORKDIR /tmp
-
 
